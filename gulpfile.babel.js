@@ -9,10 +9,16 @@ import del from 'del';
 import jade from 'gulp-jade';
 import browserSync from 'browser-sync'
 import named from 'vinyl-named'
+import plumber from 'gulp-plumber';
+import notify from 'gulp-notify'
 
 const webpackConfig = require('./webpack.config');
 
 const bsServer = browserSync.create();
+
+const plumberConfig = {
+  errHandler: notify.onError(err=>({title: 'error', message: err.message}))
+};
 
 const paths = {
   styles: {
@@ -73,21 +79,40 @@ export function assets() {
 }
 
 export function scripts(callback) {
-  return gulp.src(paths.scripts.src)
-    .pipe(named())
-  //   .pipe(gulp.dest(paths.scripts.dest))
-  //   .pipe(bsServer.stream())
-    .pipe(webpackStream(webpackConfig
-      /*, function (err, stats) {
-       if (err) throw new gutil.PluginError("webpack", err);
-       gutil.log("[webpack]", stats.toString({
-       // output options
-       }));
-       callback();
-       })*/
-    ))
-    .pipe(gulp.dest(paths.scripts.dest))
+  let first = true;
 
+  function done(err, stats) {
+    first = true;
+    if (err) {
+      return;
+    }
+    if (stats.hasErrors()) {
+      console.log('scripts: ERROR');
+    } else {
+      console.log('scripts: DONE');
+    }
+  }
+
+  // TODO по хорошему таск надопеределать для взаимодействие именно с вотчером webpack
+  return gulp.src(paths.scripts.src)
+    .pipe(plumber(plumberConfig))
+    .pipe(named())
+    .pipe(webpackStream(webpackConfig, null, (err, stats) => {
+      if (err) throw new gutil.PluginError("webpack", err);
+      gutil.log("[webpack]", stats.toString({
+        // output options
+        colors: true
+      }));
+      callback();
+    }))
+    .pipe(gulp.dest(paths.scripts.dest))
+    // .on('data', ()=> {
+    //   if (first) {
+    //     first = false;
+    //     callback();
+    //   }
+    // })
+    .pipe(bsServer.stream())
 }
 
 export function serve() {
@@ -102,6 +127,7 @@ export function serve() {
 export function watch() {
   gulp.watch(paths.styles.watch, styles);
   gulp.watch(paths.templates.watch, templates);
+  gulp.watch(paths.scripts.watch, scripts);
 }
 
 const build = gulp.series(clean, gulp.parallel(styles, scripts, templates, assets), gulp.parallel(watch, serve));
