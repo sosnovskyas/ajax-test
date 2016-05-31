@@ -1,3 +1,5 @@
 'use strict';
 
-console.log('test1');
+import myForm from './components/myForm'
+
+const form1 = new myForm();
