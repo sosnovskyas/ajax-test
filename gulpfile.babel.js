@@ -8,17 +8,11 @@ import concat from 'gulp-concat';
 import del from 'del';
 import jade from 'gulp-jade';
 import browserSync from 'browser-sync'
-import named from 'vinyl-named'
-import plumber from 'gulp-plumber';
 import notify from 'gulp-notify'
 
-const webpackConfig = require('./webpack.config');
+const webpack = webpackStream.webpack;
 
 const bsServer = browserSync.create();
-
-const plumberConfig = {
-  errHandler: notify.onError(err=>({title: 'error', message: err.message}))
-};
 
 const paths = {
   styles: {
@@ -32,7 +26,7 @@ const paths = {
     dest: 'dist/assets/'
   },
   scripts: {
-    src: ['src/index.js'],
+    src: ['./src/index.js'],
     watch: ['src/**/*.js'],
     dest: 'dist/assets/'
   },
@@ -79,40 +73,30 @@ export function assets() {
 }
 
 export function scripts(callback) {
-  let first = true;
-
-  function done(err, stats) {
-    first = true;
-    if (err) {
-      return;
+  return webpack(
+    {
+      entry: paths.scripts.src,
+      output: {
+        path: paths.scripts.dest,
+        filename: 'index.js',
+        publicPath: '/assets/'
+      },
+      module: {
+        loaders: [{
+          test: /\.jsx?$/,
+          exclude: /node_modules/,
+          loader: 'babel'
+        }]
+      }
     }
-    if (stats.hasErrors()) {
-      console.log('scripts: ERROR');
-    } else {
-      console.log('scripts: DONE');
-    }
-  }
-
-  // TODO по хорошему таск надопеределать для взаимодействие именно с вотчером webpack
-  return gulp.src(paths.scripts.src)
-    .pipe(plumber(plumberConfig))
-    .pipe(named())
-    .pipe(webpackStream(webpackConfig, null, (err, stats) => {
+    , function (err, stats) {
       if (err) throw new gutil.PluginError("webpack", err);
       gutil.log("[webpack]", stats.toString({
-        // output options
-        colors: true
+        //   output options
+        color: true
       }));
       callback();
-    }))
-    .pipe(gulp.dest(paths.scripts.dest))
-    // .on('data', ()=> {
-    //   if (first) {
-    //     first = false;
-    //     callback();
-    //   }
-    // })
-    .pipe(bsServer.stream())
+    });
 }
 
 export function serve() {
